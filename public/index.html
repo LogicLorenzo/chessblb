@@ -1,0 +1,28 @@
+<head>
+  <meta charset="utf-8" />
+  <title>Chess App</title>
+  <link rel="stylesheet" href="chessboard-1.0.0.css" />
+</head>
+<body>
+  <div id="myBoard" style="width:400px"></div>
+  <div id="status"></div>
+  <div id="fen"></div>
+  
+  <div id="clocks">
+    <div id="white-clock">White: <span id="whiteTime">05:00</span></div>
+    <div id="black-clock">Black: <span id="blackTime">05:00</span></div>
+  </div>
+
+  <!-- Undo Button -->
+  <button id="undoBtn">Undo</button>
+
+  <!-- Dependencies -->
+  <script src="jquery.js"></script>
+  <script src="chessboard-1.0.0.js"></script>
+  <script src="chess.js"></script>
+  <script src="chessclock.js"></script>
+
+  <!-- Chess Board-->
+  <script src="app.js"></script>
+</body>
+</html>

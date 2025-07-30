@@ -1,0 +1,105 @@
+def pick_move(board, engine, depth, weights, number_options):
+    infos = engine.analyse(
+        board,
+        chess.engine.Limit(depth=depth),
+        multipv=number_options
+    )
+    candidates = [pv["pv"][0] for pv in infos]
+    if len(weights) != len(candidates):
+        # Option A: just truncate to the first n weights
+        weights = weights[:len(candidates)]
+    return random.choices(candidates, weights=weights, k=1)[0]
+
+def generate_games(start_fen: str, n_games: int, move_limit: int, out_file="hidden_positions.jsonl"):
+    defender, attacker, master = make_engines()
+    results = open(out_file, "a+")
+    for g in range(n_games):
+        print(f"Analyzing game {g + 1}")
+        board = chess.Board(start_fen)
+        history = []
+        master.configure({"Clear Hash": True})
+                
+        # play until game-over
+        while not board.is_game_over() and board.fullmove_number < move_limit:
+            defender.configure({"Clear Hash": True})
+            attacker.configure({"Clear Hash": True})
+            engine_to_move = defender        if board.turn else attacker
+            depth_to_use   = DEFENDER_DEPTH  if board.turn else ATTACKER_DEPTH
+            weight_to_use  = DEFENDER_WEIGHT if board.turn else ATTACKER_WEIGHT
+            # making a move
+            move = pick_move(board, engine_to_move, depth_to_use, weight_to_use, NUMBER_MOVES)
+            board.push(move)
+            if (not board.pieces(chess.QUEEN, chess.WHITE) 
+             or not board.pieces(chess.QUEEN, chess.BLACK)
+             or abs(material_count(board)) > POINTS_LIM):
+                break
+            # now evaluate same position with both strengths
+            eval_defender = analyse_pos(board, defender, DEFENDER_DEPTH)
+            eval_attacker = analyse_pos(board, attacker, ATTACKER_DEPTH)
+            eval_master   = analyse_pos(board, master, MASTER_DEPTH)
+            if (eval_master == None 
+                or abs(eval_master) >= E_LIM):
+                print(f"{board.fullmove_number}: {eval_master}")
+                break
+            # only record “hidden” swings
+            poss_moves = board.legal_moves.count()
+            if (abs(eval_defender) >= E_MIN
+             and abs(eval_attacker) < E_LIM
+             and poss_moves > MIN_MOVES
+            ):
+                # grab top-10 continuations at DEEP_DEPTH
+                analysis = master.analyse(
+                    board,
+                    chess.engine.Limit(depth=MASTER_DEPTH),
+                    multipv=TOP_COUNT
+                )
+                evals = [ pv["score"].pov(board.turn).score() for pv in analysis ]
+                # second filtering
+                best = evals[0]
+                worst = evals[-1]
+                if worst == None or best == None:
+                    break
+                spread = abs(best - worst)
+                board.push(analysis[0]["pv"][0])
+                follow = analyse_pos(board, attacker, ATTACKER_DEPTH)
+                board.pop()
+                
+                is_white_tricky = (
+                    best >= ADVANTAGE_CP and
+                    follow < best - FOLLOW_CP and
+                    spread >= SPREAD_CP and
+                    evals[0] - evals[1] > SPREAD_CP and
+                    is_queen_attacked(board, chess.WHITE)
+                )
+
+                # black‐win case
+                is_black_tricky = (
+                    best <= -ADVANTAGE_CP and
+                    follow > best + FOLLOW_CP and
+                    spread >= SPREAD_CP and
+                    evals[-2] - evals[-1] > SPREAD_CP and
+                    is_queen_attacked(board, chess.BLACK)
+                )
+                if (is_white_tricky or is_black_tricky) and not has_free_capture(board):
+                    # serialize a record
+                    record = {
+                    "ID": g,
+                    "ply": len(history)+1,
+                    "fen": board.fen(),
+                    "eval_deep": eval_defender,
+                    "eval_shallow": eval_attacker,
+                    "eval_master": eval_master,
+                    "evals": evals
+                    }
+                    results.write(json.dumps(record)+"\n")
+                    
+            history.append(move)
+
+        # optionally reset engines’ internal hash to avoid blow-up
+        print(board.fen())
+        print(material_count(board))
+        
+    results.close()
+    master.quit()
+    defender.quit()
+    attacker.quit()
