@@ -16,5 +16,13 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LogicLorenzo/chessblb.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LogicLorenzo/chessblb/issues"
+  },
+  "homepage": "https://github.com/LogicLorenzo/chessblb#readme",
   "description": ""
 }
